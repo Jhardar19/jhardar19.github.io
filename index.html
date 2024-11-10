@@ -4,115 +4,43 @@
     <meta charset="UTF-8">
     <title>Encuesta de Satisfacción</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        input, textarea {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 10px;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .loader {
+        /* ... (estilos previos) ... */
+        .error-message {
+            color: red;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid red;
             display: none;
-            border: 4px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 4px solid #3498db;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            margin: 10px auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <h2>Encuesta de Satisfacción del Cliente</h2>
-    <div id="collected-info" style="display: none;"></div>
+    <div id="error-display" class="error-message"></div>
     
     <form id="surveyForm" onsubmit="return handleSubmit(event)">
-        <div class="form-group">
-            <label for="name">Nombre:</label>
-            <input type="text" id="name" required>
-        </div>
-        
-        <div class="form-group">
-            <label for="email">Email:</label>
-            <input type="email" id="email" required>
-        </div>
-        
-        <div class="form-group">
-            <label for="feedback">¿Cómo podemos mejorar nuestros servicios?</label>
-            <textarea id="feedback" rows="4" required></textarea>
-        </div>
-        
-        <div class="loader" id="submitLoader"></div>
-        <button type="submit">Enviar Respuesta</button>
+        <!-- ... (campos del formulario previos) ... -->
     </form>
 
     <script>
-        // Reemplazar con la URL de tu Apps Script web app
+        // Asegúrate de reemplazar esto con tu URL real de Google Apps Script
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwtftdf91NPmdTwtiNHMlnM8m747Q4IiDoThDnSMhU84XpPyBGb9-X-8Bb36qcUzEqs/exec';
         
-        // Función para recopilar información del dispositivo
-        function collectDeviceInfo() {
-            const info = {
-                userAgent: navigator.userAgent,
-                language: navigator.language,
-                platform: navigator.platform,
-                screenResolution: `${window.screen.width}x${window.screen.height}`,
-                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                cookiesEnabled: navigator.cookieEnabled,
-                timestamp: new Date().toISOString()
-            };
-            
-            // Intentar obtener la ubicación si el usuario lo permite
-            if (navigator.geolocation) {
-                return new Promise((resolve) => {
-                    navigator.geolocation.getCurrentPosition(
-                        position => {
-                            info.latitude = position.coords.latitude;
-                            info.longitude = position.coords.longitude;
-                            resolve(info);
-                        },
-                        error => {
-                            info.geolocationError = error.message;
-                            resolve(info);
-                        }
-                    );
-                });
-            }
-            
-            return Promise.resolve(info);
+        // Función para mostrar errores
+        function showError(message, details = '') {
+            const errorDiv = document.getElementById('error-display');
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = `Error: ${message}<br><small>${details}</small>`;
+            console.error('Error:', message, details);
         }
 
-        // Manejador del envío del formulario
         async function handleSubmit(event) {
             event.preventDefault();
             
-            // Mostrar loader
             const loader = document.getElementById('submitLoader');
+            const errorDiv = document.getElementById('error-display');
             loader.style.display = 'block';
+            errorDiv.style.display = 'none';
             
             try {
                 const deviceInfo = await collectDeviceInfo();
@@ -123,30 +51,43 @@
                     deviceInfo: deviceInfo
                 };
 
-                // Enviar datos a Google Sheets
+                console.log('Enviando datos:', formData);
+                
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
+                    mode: 'cors',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify(formData)
                 });
 
+                console.log('Respuesta status:', response.status);
+                
                 if (!response.ok) {
-                    throw new Error('Error al enviar los datos');
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status}, response: ${errorText}`);
                 }
 
-                alert('¡Gracias por tu respuesta!');
-                document.getElementById('surveyForm').reset();
+                const result = await response.json();
+                console.log('Respuesta:', result);
+
+                if (result.status === 'success') {
+                    alert('¡Gracias por tu respuesta!');
+                    document.getElementById('surveyForm').reset();
+                } else {
+                    throw new Error(result.message || 'Error desconocido en el servidor');
+                }
             } catch (error) {
-                console.error('Error:', error);
-                alert('Hubo un error al enviar tu respuesta. Por favor, intenta nuevamente.');
+                showError('Error al enviar el formulario', error.toString());
             } finally {
                 loader.style.display = 'none';
             }
             
             return false;
         }
+
+        // ... (resto del código previo) ...
     </script>
 </body>
 </html>
